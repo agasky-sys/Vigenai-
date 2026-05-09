@@ -1,0 +1,737 @@
+import { useState, useEffect, useRef } from "react";
+
+const NAV_ITEMS = [
+  { id: "home", icon: "⚡", label: "Studio" },
+  { id: "explore", icon: "🎬", label: "Explore" },
+  { id: "queue", icon: "📊", label: "Queue" },
+  { id: "pricing", icon: "💎", label: "Pricing" },
+];
+
+const MODELS = [
+  { id: "veo", name: "Veo 3.1", badge: "CINEMATIC", color: "#FFD700", desc: "Best realism & physics" },
+  { id: "kling", name: "Kling 3.0", badge: "TOP MOTION", color: "#00FFCC", desc: "Human motion specialist" },
+  { id: "seedance", name: "Seedance 2.0", badge: "AUDIO+VIDEO", color: "#FF6B35", desc: "Native audio sync" },
+  { id: "runway", name: "Runway Gen-4", badge: "CINEMATIC", color: "#A78BFA", desc: "Pro filmmaker workflow" },
+  { id: "realmotion", name: "RealMotion 3.1", badge: "FAST", color: "#34D399", desc: "30s generation speed" },
+  { id: "minimax", name: "MiniMax 2.3", badge: "BUDGET", color: "#60A5FA", desc: "Best value quality" },
+];
+
+const DURATIONS = ["15s", "30s", "1 min", "3 min", "5 min", "10 min", "Custom"];
+const RESOLUTIONS = ["1080p", "2K", "4K", "8K"];
+const FRAMERATES = ["24fps", "30fps", "60fps", "120fps"];
+const RATIOS = ["16:9", "9:16", "1:1", "4:3", "21:9"];
+
+const EXPLORE_VIDEOS = [
+  { id: 1, title: "Neon Tokyo Drift", author: "NightWave", duration: "2:34", model: "Veo 3.1", views: "1.2M", gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", emoji: "🌆" },
+  { id: 2, title: "Ocean Storm 4K", author: "WaveForge", duration: "5:12", model: "Kling 3.0", views: "890K", gradient: "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)", emoji: "🌊" },
+  { id: 3, title: "Desert Mirage", author: "SandDune", duration: "1:45", model: "Seedance 2.0", views: "2.1M", gradient: "linear-gradient(135deg, #f7971e 0%, #ffd200 100%)", emoji: "🏜️" },
+  { id: 4, title: "Forest Spirit", author: "GreenMind", duration: "3:20", model: "RealMotion", views: "445K", gradient: "linear-gradient(135deg, #134e5e 0%, #71b280 100%)", emoji: "🌲" },
+  { id: 5, title: "Cyber Metropolis", author: "NeonPunk", duration: "8:05", model: "Runway Gen-4", views: "3.4M", gradient: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)", emoji: "🤖" },
+  { id: 6, title: "Aurora Borealis", author: "PolarLight", duration: "4:50", model: "Veo 3.1", views: "988K", gradient: "linear-gradient(135deg, #00b4db 0%, #0083b0 100%)", emoji: "🌌" },
+  { id: 7, title: "Ancient Ruins", author: "TimeLost", duration: "6:30", model: "Kling 3.0", views: "677K", gradient: "linear-gradient(135deg, #8B6914 0%, #C9A84C 100%)", emoji: "🏛️" },
+  { id: 8, title: "Volcano Eruption", author: "MagmaCore", duration: "2:15", model: "MiniMax 2.3", views: "5.6M", gradient: "linear-gradient(135deg, #FF4500 0%, #FF8C00 100%)", emoji: "🌋" },
+  { id: 9, title: "Space Station", author: "OrbitX", duration: "10:00", model: "Veo 3.1", views: "1.8M", gradient: "linear-gradient(135deg, #0d0d0d 0%, #1a1a4e 100%)", emoji: "🚀" },
+];
+
+const QUEUE_ITEMS = [
+  { id: 1, title: "Cyberpunk City at Night", status: "generating", progress: 67, model: "Veo 3.1", duration: "3 min", res: "4K", eta: "2m 14s" },
+  { id: 2, title: "Underwater Coral Reef", status: "queued", progress: 0, model: "Kling 3.0", duration: "5 min", res: "2K", eta: "~8 min" },
+  { id: 3, title: "Ancient Dragon Flight", status: "completed", progress: 100, model: "Runway Gen-4", duration: "1 min", res: "4K", eta: "Done" },
+  { id: 4, title: "Slow Motion Rain", status: "completed", progress: 100, model: "Seedance 2.0", duration: "30s", res: "1080p", eta: "Done" },
+];
+
+const PLANS = [
+  {
+    name: "FREE",
+    price: "$0",
+    period: "forever",
+    color: "#6B7280",
+    features: ["5 videos/day", "Up to 1 min duration", "1080p resolution", "No watermark", "3 AI models", "Community feed access"],
+    missing: ["4K/8K export", "Long-form 10min", "Priority queue", "Character Lock", "Audio generation"],
+    cta: "Get Started",
+  },
+  {
+    name: "PRO",
+    price: "$24",
+    period: "per month",
+    color: "#FFD700",
+    badge: "MOST POPULAR",
+    features: ["Unlimited videos", "Up to 5 min duration", "Up to 4K resolution", "No watermark", "All 6 AI models", "Character Lock system", "Native audio generation", "Priority render queue", "Cinematic mode"],
+    missing: ["8K export", "10 min videos", "Custom model fine-tuning"],
+    cta: "Start Pro",
+  },
+  {
+    name: "STUDIO",
+    price: "$89",
+    period: "per month",
+    color: "#FF6B35",
+    badge: "PROFESSIONAL",
+    features: ["Unlimited everything", "Up to 10 min duration", "8K resolution", "No watermark", "All models + early access", "Character Lock system", "Native audio generation", "Instant priority queue", "Cinematic mode", "Custom model fine-tuning", "API access", "Dedicated support", "Commercial license"],
+    missing: [],
+    cta: "Go Studio",
+  },
+];
+
+export default function ViGenAI() {
+  const [activeNav, setActiveNav] = useState("home");
+  const [activeMode, setActiveMode] = useState("text");
+  const [selectedModel, setSelectedModel] = useState("veo");
+  const [selectedDuration, setSelectedDuration] = useState("1 min");
+  const [selectedRes, setSelectedRes] = useState("4K");
+  const [selectedFps, setSelectedFps] = useState("24fps");
+  const [selectedRatio, setSelectedRatio] = useState("16:9");
+  const [prompt, setPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generateProgress, setGenerateProgress] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [motionIntensity, setMotionIntensity] = useState(65);
+  const [cinematicMode, setCinematicMode] = useState(true);
+  const [characterLock, setCharacterLock] = useState(false);
+  const [audioGen, setAudioGen] = useState(true);
+  const [enhancing, setEnhancing] = useState(false);
+  const [generatedVideo, setGeneratedVideo] = useState(null);
+  const [particles, setParticles] = useState([]);
+  const fileRef = useRef();
+
+  useEffect(() => {
+    const p = Array.from({ length: 30 }, (_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: Math.random() * 2 + 0.5,
+      speed: Math.random() * 20 + 10,
+      delay: Math.random() * 5,
+    }));
+    setParticles(p);
+  }, []);
+
+  const handleGenerate = () => {
+    if (!prompt && activeMode === "text") return;
+    setIsGenerating(true);
+    setGenerateProgress(0);
+    setGeneratedVideo(null);
+    let p = 0;
+    const interval = setInterval(() => {
+      p += Math.random() * 4 + 1;
+      if (p >= 100) {
+        p = 100;
+        clearInterval(interval);
+        setTimeout(() => {
+          setIsGenerating(false);
+          setGeneratedVideo({ title: prompt || "Generated Video", model: selectedModel, duration: selectedDuration, res: selectedRes });
+        }, 400);
+      }
+      setGenerateProgress(Math.min(p, 100));
+    }, 120);
+  };
+
+  const handleEnhancePrompt = async () => {
+    if (!prompt) return;
+    setEnhancing(true);
+    await new Promise(r => setTimeout(r, 1800));
+    const enhanced = `${prompt}, ultra-cinematic 8K, dramatic lighting, photorealistic textures, temporal consistency, smooth camera motion, professional color grade, film grain overlay, HDR, atmospheric depth of field`;
+    setPrompt(enhanced);
+    setEnhancing(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith("image/")) {
+      const url = URL.createObjectURL(file);
+      setUploadedImage(url);
+    }
+  };
+
+  const styles = {
+    app: {
+      minHeight: "100vh",
+      background: "#050508",
+      color: "#E8E0D0",
+      fontFamily: "'Rajdhani', 'Oswald', sans-serif",
+      display: "flex",
+      overflow: "hidden",
+      position: "relative",
+    },
+    particles: {
+      position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 0,
+    },
+    sidebar: {
+      width: 72,
+      background: "rgba(10,10,18,0.95)",
+      borderRight: "1px solid rgba(255,215,0,0.08)",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      padding: "20px 0",
+      gap: 8,
+      position: "fixed",
+      left: 0, top: 0, bottom: 0,
+      zIndex: 100,
+    },
+    logo: {
+      width: 42, height: 42,
+      background: "linear-gradient(135deg, #FFD700, #FF6B35)",
+      borderRadius: 10,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: 20, marginBottom: 24,
+      boxShadow: "0 0 20px rgba(255,215,0,0.3)",
+    },
+    navBtn: (active) => ({
+      width: 48, height: 48,
+      borderRadius: 12,
+      border: active ? "1px solid rgba(255,215,0,0.4)" : "1px solid transparent",
+      background: active ? "rgba(255,215,0,0.1)" : "transparent",
+      color: active ? "#FFD700" : "#6B7280",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      cursor: "pointer", fontSize: 18,
+      transition: "all 0.2s",
+      gap: 2,
+    }),
+    navLabel: { fontSize: 8, fontFamily: "monospace", letterSpacing: 1 },
+    main: {
+      marginLeft: 72,
+      flex: 1,
+      display: "flex",
+      flexDirection: "column",
+      position: "relative",
+      zIndex: 1,
+    },
+    topBar: {
+      height: 56,
+      borderBottom: "1px solid rgba(255,215,0,0.06)",
+      display: "flex", alignItems: "center",
+      padding: "0 28px",
+      gap: 16,
+      background: "rgba(5,5,8,0.9)",
+      backdropFilter: "blur(10px)",
+    },
+    topTitle: {
+      fontSize: 18, fontWeight: 700, letterSpacing: 3,
+      background: "linear-gradient(90deg, #FFD700, #FF6B35)",
+      WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+    },
+    badge: {
+      padding: "3px 10px", borderRadius: 4,
+      background: "rgba(255,215,0,0.1)",
+      border: "1px solid rgba(255,215,0,0.2)",
+      fontSize: 10, letterSpacing: 2, color: "#FFD700",
+      fontFamily: "monospace",
+    },
+    content: {
+      flex: 1, overflowY: "auto", padding: "24px 28px",
+    },
+  };
+
+  const renderStudio = () => (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20, height: "100%" }}>
+      {/* LEFT PANEL */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Mode Tabs */}
+        <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: 4, border: "1px solid rgba(255,215,0,0.08)" }}>
+          {[
+            { id: "text", label: "📝 Text to Video" },
+            { id: "image", label: "🖼 Image to Video" },
+            { id: "script", label: "📜 Script to Film" },
+            { id: "storyboard", label: "🎞 Storyboard" },
+          ].map(m => (
+            <button key={m.id} onClick={() => setActiveMode(m.id)} style={{
+              flex: 1, padding: "9px 0", borderRadius: 8, border: "none",
+              background: activeMode === m.id ? "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,107,53,0.1))" : "transparent",
+              color: activeMode === m.id ? "#FFD700" : "#6B7280",
+              cursor: "pointer", fontSize: 12, fontWeight: 600, letterSpacing: 0.5,
+              fontFamily: "inherit",
+              borderBottom: activeMode === m.id ? "2px solid #FFD700" : "2px solid transparent",
+              transition: "all 0.2s",
+            }}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Prompt / Upload Area */}
+        {activeMode === "text" || activeMode === "script" ? (
+          <div style={{ position: "relative" }}>
+            <textarea
+              value={prompt}
+              onChange={e => setPrompt(e.target.value)}
+              placeholder={activeMode === "script"
+                ? "Paste your full script here. ViGenAI will auto-detect scenes, characters, and emotions and split it into a multi-scene film...\n\nEXAMPLE:\nScene 1: A lone astronaut drifts through deep space...\nScene 2: She spots a mysterious signal from a distant moon..."
+                : "Describe your video in detail. Be specific about camera movements, lighting, mood, characters, environment, and action...\n\nEXAMPLE: A cinematic slow-motion shot of golden wheat fields at sunset, camera gliding low over the surface, warm amber light, slight wind ripple, photorealistic 8K detail..."}
+              style={{
+                width: "100%", minHeight: activeMode === "script" ? 220 : 160,
+                background: "rgba(255,255,255,0.02)",
+                border: "1px solid rgba(255,215,0,0.15)",
+                borderRadius: 12, padding: 16, color: "#E8E0D0",
+                fontSize: 13, lineHeight: 1.7, resize: "vertical",
+                fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+              }}
+            />
+            <button
+              onClick={handleEnhancePrompt}
+              disabled={enhancing || !prompt}
+              style={{
+                position: "absolute", bottom: 12, right: 12,
+                padding: "6px 14px", borderRadius: 6,
+                background: enhancing ? "rgba(255,215,0,0.05)" : "rgba(255,215,0,0.12)",
+                border: "1px solid rgba(255,215,0,0.3)",
+                color: "#FFD700", cursor: "pointer", fontSize: 11,
+                fontFamily: "inherit", letterSpacing: 1, fontWeight: 700,
+                transition: "all 0.2s",
+              }}>
+              {enhancing ? "✨ ENHANCING..." : "✨ ENHANCE PROMPT"}
+            </button>
+          </div>
+        ) : (
+          <div
+            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            onClick={() => fileRef.current?.click()}
+            style={{
+              minHeight: 180, borderRadius: 12,
+              border: `2px dashed ${dragOver ? "#FFD700" : "rgba(255,215,0,0.2)"}`,
+              background: dragOver ? "rgba(255,215,0,0.05)" : "rgba(255,255,255,0.01)",
+              display: "flex", flexDirection: "column", alignItems: "center",
+              justifyContent: "center", cursor: "pointer", transition: "all 0.2s",
+              position: "relative", overflow: "hidden",
+            }}>
+            {uploadedImage ? (
+              <img src={uploadedImage} alt="upload" style={{ maxHeight: 160, maxWidth: "100%", borderRadius: 8, objectFit: "contain" }} />
+            ) : (
+              <>
+                <div style={{ fontSize: 36, marginBottom: 12 }}>🎞</div>
+                <div style={{ color: "#FFD700", fontWeight: 700, letterSpacing: 2, fontSize: 13 }}>DROP IMAGE HERE</div>
+                <div style={{ color: "#4B5563", fontSize: 11, marginTop: 6 }}>or click to browse • PNG, JPG, WEBP</div>
+              </>
+            )}
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
+              const f = e.target.files[0];
+              if (f) setUploadedImage(URL.createObjectURL(f));
+            }} />
+          </div>
+        )}
+
+        {activeMode === "image" && uploadedImage && (
+          <textarea
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            placeholder="Describe how to animate this image (optional)..."
+            style={{
+              width: "100%", minHeight: 80,
+              background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,215,0,0.12)",
+              borderRadius: 10, padding: 12, color: "#E8E0D0", fontSize: 13,
+              fontFamily: "inherit", resize: "none", outline: "none", boxSizing: "border-box",
+            }}
+          />
+        )}
+
+        {/* Model Selector */}
+        <div>
+          <div style={{ fontSize: 10, letterSpacing: 3, color: "#6B7280", marginBottom: 10, fontFamily: "monospace" }}>AI MODEL</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+            {MODELS.map(m => (
+              <button key={m.id} onClick={() => setSelectedModel(m.id)} style={{
+                padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                border: `1px solid ${selectedModel === m.id ? m.color : "rgba(255,255,255,0.06)"}`,
+                background: selectedModel === m.id ? `rgba(${hexToRgb(m.color)},0.1)` : "rgba(255,255,255,0.02)",
+                textAlign: "left", transition: "all 0.2s", fontFamily: "inherit",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: selectedModel === m.id ? m.color : "#9CA3AF" }}>{m.name}</span>
+                  <span style={{ fontSize: 7, padding: "2px 5px", borderRadius: 3, background: `rgba(${hexToRgb(m.color)},0.2)`, color: m.color, letterSpacing: 0.5 }}>{m.badge}</span>
+                </div>
+                <div style={{ fontSize: 10, color: "#4B5563" }}>{m.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Generate Button */}
+        <div style={{ marginTop: 4 }}>
+          {isGenerating ? (
+            <div style={{ background: "rgba(255,215,0,0.05)", border: "1px solid rgba(255,215,0,0.2)", borderRadius: 12, padding: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, fontSize: 12 }}>
+                <span style={{ color: "#FFD700", letterSpacing: 2 }}>⚡ GENERATING...</span>
+                <span style={{ color: "#9CA3AF", fontFamily: "monospace" }}>{Math.round(generateProgress)}%</span>
+              </div>
+              <div style={{ height: 4, background: "rgba(255,255,255,0.05)", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${generateProgress}%`, background: "linear-gradient(90deg, #FFD700, #FF6B35)", borderRadius: 2, transition: "width 0.1s" }} />
+              </div>
+              <div style={{ marginTop: 10, fontSize: 10, color: "#4B5563", fontFamily: "monospace" }}>
+                {generateProgress < 20 ? "Initializing model pipeline..." :
+                  generateProgress < 45 ? "Generating scene structure..." :
+                    generateProgress < 70 ? "Rendering frames with temporal consistency..." :
+                      generateProgress < 90 ? "Applying cinematic grade & audio..." :
+                        "Finalizing & upscaling to " + selectedRes + "..."}
+              </div>
+            </div>
+          ) : generatedVideo ? (
+            <div style={{ background: "rgba(52,211,153,0.05)", border: "1px solid rgba(52,211,153,0.2)", borderRadius: 12, padding: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ color: "#34D399", fontSize: 13, fontWeight: 700, letterSpacing: 2 }}>✅ VIDEO READY</div>
+                  <div style={{ color: "#6B7280", fontSize: 11, marginTop: 4 }}>{generatedVideo.duration} · {generatedVideo.res} · {MODELS.find(m => m.id === generatedVideo.model)?.name}</div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button style={{ padding: "8px 16px", borderRadius: 8, background: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.3)", color: "#34D399", cursor: "pointer", fontSize: 12, fontFamily: "inherit", fontWeight: 700, letterSpacing: 1 }}>▶ PREVIEW</button>
+                  <button style={{ padding: "8px 16px", borderRadius: 8, background: "rgba(255,215,0,0.15)", border: "1px solid rgba(255,215,0,0.3)", color: "#FFD700", cursor: "pointer", fontSize: 12, fontFamily: "inherit", fontWeight: 700, letterSpacing: 1 }}>⬇ DOWNLOAD</button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handleGenerate}
+              disabled={!prompt && activeMode !== "image"}
+              style={{
+                width: "100%", padding: "16px 0", borderRadius: 12,
+                background: (!prompt && activeMode !== "image") ? "rgba(255,255,255,0.04)" : "linear-gradient(135deg, #FFD700 0%, #FF6B35 100%)",
+                border: "none", cursor: (!prompt && activeMode !== "image") ? "not-allowed" : "pointer",
+                color: (!prompt && activeMode !== "image") ? "#374151" : "#050508",
+                fontSize: 14, fontWeight: 800, letterSpacing: 4,
+                fontFamily: "inherit", transition: "all 0.3s",
+                boxShadow: (!prompt && activeMode !== "image") ? "none" : "0 0 30px rgba(255,215,0,0.2)",
+              }}>
+              ⚡ GENERATE VIDEO
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* RIGHT PANEL - Settings */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <Panel title="OUTPUT SETTINGS">
+          <Setting label="DURATION">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {DURATIONS.map(d => (
+                <Chip key={d} active={selectedDuration === d} onClick={() => setSelectedDuration(d)}>{d}</Chip>
+              ))}
+            </div>
+          </Setting>
+          <Setting label="RESOLUTION">
+            <div style={{ display: "flex", gap: 6 }}>
+              {RESOLUTIONS.map(r => (
+                <Chip key={r} active={selectedRes === r} onClick={() => setSelectedRes(r)}>{r}</Chip>
+              ))}
+            </div>
+          </Setting>
+          <Setting label="FRAME RATE">
+            <div style={{ display: "flex", gap: 6 }}>
+              {FRAMERATES.map(f => (
+                <Chip key={f} active={selectedFps === f} onClick={() => setSelectedFps(f)}>{f}</Chip>
+              ))}
+            </div>
+          </Setting>
+          <Setting label="ASPECT RATIO">
+            <div style={{ display: "flex", gap: 6 }}>
+              {RATIOS.map(r => (
+                <Chip key={r} active={selectedRatio === r} onClick={() => setSelectedRatio(r)}>{r}</Chip>
+              ))}
+            </div>
+          </Setting>
+        </Panel>
+
+        <Panel title="MOTION INTENSITY">
+          <div style={{ padding: "4px 0 8px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 10, color: "#4B5563" }}>SUBTLE</span>
+              <span style={{ fontSize: 11, color: "#FFD700", fontFamily: "monospace" }}>{motionIntensity}%</span>
+              <span style={{ fontSize: 10, color: "#4B5563" }}>INTENSE</span>
+            </div>
+            <input type="range" min={0} max={100} value={motionIntensity} onChange={e => setMotionIntensity(+e.target.value)}
+              style={{ width: "100%", accentColor: "#FFD700" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 9, color: "#374151", fontFamily: "monospace" }}>
+              <span>STILL</span><span>GENTLE</span><span>MODERATE</span><span>DYNAMIC</span><span>EPIC</span>
+            </div>
+          </div>
+        </Panel>
+
+        <Panel title="ADVANCED FEATURES">
+          <Toggle label="🎬 Cinematic Mode" sublabel="Film grain, HDR, color grade" value={cinematicMode} onChange={setCinematicMode} />
+          <Toggle label="🔒 Character Lock" sublabel="Keep faces consistent across scenes" value={characterLock} onChange={setCharacterLock} />
+          <Toggle label="🔊 Audio Generation" sublabel="Synced SFX, ambient & music" value={audioGen} onChange={setAudioGen} />
+        </Panel>
+
+        <Panel title="RENDER INFO">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {[
+              { label: "MODEL", val: MODELS.find(m => m.id === selectedModel)?.name },
+              { label: "DURATION", val: selectedDuration },
+              { label: "RESOLUTION", val: selectedRes },
+              { label: "FPS", val: selectedFps },
+              { label: "RATIO", val: selectedRatio },
+              { label: "EST. TIME", val: selectedRes === "8K" ? "~12 min" : selectedRes === "4K" ? "~5 min" : "~2 min" },
+            ].map(item => (
+              <div key={item.label} style={{ background: "rgba(255,255,255,0.02)", borderRadius: 8, padding: "8px 10px" }}>
+                <div style={{ fontSize: 8, color: "#4B5563", letterSpacing: 2, fontFamily: "monospace", marginBottom: 3 }}>{item.label}</div>
+                <div style={{ fontSize: 12, color: "#FFD700", fontWeight: 700 }}>{item.val}</div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+    </div>
+  );
+
+  const renderExplore = () => (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 3, color: "#E8E0D0" }}>COMMUNITY FEED</div>
+          <div style={{ fontSize: 11, color: "#4B5563", marginTop: 4 }}>AI-generated videos from 5M+ creators worldwide</div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {["TRENDING", "RECENT", "TOP 4K", "LONG-FORM"].map(f => (
+            <button key={f} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid rgba(255,215,0,0.15)", background: "transparent", color: "#6B7280", cursor: "pointer", fontSize: 10, letterSpacing: 2, fontFamily: "inherit" }}>{f}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ columns: "3 280px", gap: 14 }}>
+        {EXPLORE_VIDEOS.map(v => (
+          <div key={v.id} style={{
+            breakInside: "avoid", marginBottom: 14, borderRadius: 12, overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(255,255,255,0.02)",
+            cursor: "pointer", transition: "transform 0.2s, border-color 0.2s",
+          }}
+            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.borderColor = "rgba(255,215,0,0.2)"; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }}>
+            <div style={{ height: 140 + (v.id % 3) * 40, background: v.gradient, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 48, position: "relative" }}>
+              {v.emoji}
+              <div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.7)", padding: "3px 8px", borderRadius: 4, fontSize: 10, fontFamily: "monospace", color: "#E8E0D0" }}>{v.duration}</div>
+              <div style={{ position: "absolute", top: 8, left: 8, background: "rgba(0,0,0,0.6)", padding: "2px 7px", borderRadius: 4, fontSize: 9, letterSpacing: 1, color: "#FFD700" }}>{v.model}</div>
+            </div>
+            <div style={{ padding: "10px 12px" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#E8E0D0", marginBottom: 4 }}>{v.title}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#4B5563" }}>
+                <span>by {v.author}</span>
+                <span>👁 {v.views}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderQueue = () => (
+    <div>
+      <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 3, color: "#E8E0D0", marginBottom: 6 }}>RENDER QUEUE</div>
+      <div style={{ fontSize: 11, color: "#4B5563", marginBottom: 24 }}>Live status of your video generation jobs</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {QUEUE_ITEMS.map(item => (
+          <div key={item.id} style={{
+            background: "rgba(255,255,255,0.02)", border: `1px solid ${item.status === "generating" ? "rgba(255,215,0,0.2)" : item.status === "completed" ? "rgba(52,211,153,0.15)" : "rgba(255,255,255,0.06)"}`,
+            borderRadius: 12, padding: 20,
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: item.status === "generating" ? 12 : 0 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#E8E0D0", marginBottom: 6 }}>{item.title}</div>
+                <div style={{ display: "flex", gap: 10, fontSize: 10, color: "#6B7280" }}>
+                  <span>🤖 {item.model}</span>
+                  <span>⏱ {item.duration}</span>
+                  <span>📺 {item.res}</span>
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{
+                  padding: "4px 10px", borderRadius: 6, fontSize: 10, letterSpacing: 1, fontWeight: 700,
+                  background: item.status === "generating" ? "rgba(255,215,0,0.1)" : item.status === "completed" ? "rgba(52,211,153,0.1)" : "rgba(255,255,255,0.05)",
+                  color: item.status === "generating" ? "#FFD700" : item.status === "completed" ? "#34D399" : "#6B7280",
+                  border: `1px solid ${item.status === "generating" ? "rgba(255,215,0,0.2)" : item.status === "completed" ? "rgba(52,211,153,0.2)" : "rgba(255,255,255,0.08)"}`,
+                }}>
+                  {item.status === "generating" ? "⚡ GENERATING" : item.status === "completed" ? "✅ COMPLETE" : "⏳ QUEUED"}
+                </div>
+                <div style={{ fontSize: 10, color: "#4B5563", marginTop: 6, fontFamily: "monospace" }}>ETA: {item.eta}</div>
+              </div>
+            </div>
+            {item.status === "generating" && (
+              <div>
+                <div style={{ height: 3, background: "rgba(255,255,255,0.05)", borderRadius: 2, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${item.progress}%`, background: "linear-gradient(90deg, #FFD700, #FF6B35)", borderRadius: 2 }} />
+                </div>
+                <div style={{ marginTop: 6, fontSize: 9, color: "#374151", fontFamily: "monospace" }}>Rendering frames... {item.progress}% complete</div>
+              </div>
+            )}
+            {item.status === "completed" && (
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <button style={{ padding: "6px 14px", borderRadius: 6, background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: "#34D399", cursor: "pointer", fontSize: 11, fontFamily: "inherit", letterSpacing: 1, fontWeight: 700 }}>▶ PREVIEW</button>
+                <button style={{ padding: "6px 14px", borderRadius: 6, background: "rgba(255,215,0,0.1)", border: "1px solid rgba(255,215,0,0.2)", color: "#FFD700", cursor: "pointer", fontSize: 11, fontFamily: "inherit", letterSpacing: 1, fontWeight: 700 }}>⬇ DOWNLOAD</button>
+                <button style={{ padding: "6px 14px", borderRadius: 6, background: "transparent", border: "1px solid rgba(255,255,255,0.08)", color: "#6B7280", cursor: "pointer", fontSize: 11, fontFamily: "inherit", letterSpacing: 1 }}>SHARE</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderPricing = () => (
+    <div>
+      <div style={{ textAlign: "center", marginBottom: 40 }}>
+        <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: 4, background: "linear-gradient(90deg, #FFD700, #FF6B35)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>TRANSPARENT PRICING</div>
+        <div style={{ color: "#6B7280", fontSize: 13, marginTop: 8, letterSpacing: 1 }}>No hidden fees. No watermarks. No credit tricks. Just results.</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, maxWidth: 900, margin: "0 auto" }}>
+        {PLANS.map(plan => (
+          <div key={plan.name} style={{
+            background: plan.name === "PRO" ? "rgba(255,215,0,0.04)" : "rgba(255,255,255,0.02)",
+            border: `1px solid ${plan.name === "PRO" ? "rgba(255,215,0,0.25)" : "rgba(255,255,255,0.06)"}`,
+            borderRadius: 16, padding: 24, position: "relative",
+            transform: plan.name === "PRO" ? "scale(1.02)" : "scale(1)",
+          }}>
+            {plan.badge && (
+              <div style={{ position: "absolute", top: -10, left: "50%", transform: "translateX(-50%)", padding: "3px 14px", borderRadius: 20, background: `linear-gradient(90deg, ${plan.color}, #FF6B35)`, fontSize: 9, letterSpacing: 2, fontWeight: 800, color: "#050508", whiteSpace: "nowrap" }}>
+                {plan.badge}
+              </div>
+            )}
+            <div style={{ fontSize: 10, letterSpacing: 4, color: plan.color, marginBottom: 8, fontFamily: "monospace" }}>{plan.name}</div>
+            <div style={{ fontSize: 36, fontWeight: 800, color: "#E8E0D0", marginBottom: 2 }}>{plan.price}</div>
+            <div style={{ fontSize: 11, color: "#4B5563", marginBottom: 20 }}>{plan.period}</div>
+            <button style={{
+              width: "100%", padding: "10px 0", borderRadius: 8,
+              background: plan.name === "FREE" ? "rgba(255,255,255,0.05)" : `linear-gradient(135deg, ${plan.color}, #FF6B35)`,
+              border: "none", cursor: "pointer",
+              color: plan.name === "FREE" ? "#9CA3AF" : "#050508",
+              fontWeight: 800, letterSpacing: 2, fontSize: 12,
+              fontFamily: "inherit", marginBottom: 20,
+            }}>{plan.cta}</button>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {plan.features.map(f => (
+                <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#9CA3AF" }}>
+                  <span style={{ color: "#34D399", fontSize: 12 }}>✓</span>{f}
+                </div>
+              ))}
+              {plan.missing.map(f => (
+                <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#374151" }}>
+                  <span style={{ fontSize: 12 }}>✗</span>{f}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ textAlign: "center", marginTop: 32, padding: 20, background: "rgba(255,107,53,0.05)", border: "1px solid rgba(255,107,53,0.1)", borderRadius: 12, maxWidth: 600, margin: "32px auto 0" }}>
+        <div style={{ fontSize: 13, color: "#FF6B35", fontWeight: 700, letterSpacing: 2, marginBottom: 6 }}>⚡ WHY VIGENAI IS DIFFERENT</div>
+        <div style={{ fontSize: 11, color: "#6B7280", lineHeight: 1.8 }}>
+          No competitor offers long-form 10-min videos in 8K with character lock + native audio in one platform. We solved what Digen, Runway, Kling, and Pika couldn't.
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={styles.app}>
+      {/* Animated particles */}
+      <div style={styles.particles}>
+        {particles.map(p => (
+          <div key={p.id} style={{
+            position: "absolute", left: `${p.x}%`, top: `${p.y}%`,
+            width: p.size, height: p.size, borderRadius: "50%",
+            background: "rgba(255,215,0,0.3)",
+            animation: `float ${p.speed}s ease-in-out ${p.delay}s infinite alternate`,
+          }} />
+        ))}
+      </div>
+
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap');
+        @keyframes float { from { transform: translateY(0px) scale(1); opacity: 0.3; } to { transform: translateY(-30px) scale(1.5); opacity: 0.6; } }
+        ::-webkit-scrollbar { width: 4px; } 
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,215,0,0.2); border-radius: 2px; }
+        * { box-sizing: border-box; }
+      `}</style>
+
+      {/* Sidebar */}
+      <div style={styles.sidebar}>
+        <div style={styles.logo}>⚡</div>
+        {NAV_ITEMS.map(item => (
+          <button key={item.id} onClick={() => setActiveNav(item.id)} style={styles.navBtn(activeNav === item.id)}>
+            <span>{item.icon}</span>
+            <span style={styles.navLabel}>{item.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Main */}
+      <div style={styles.main}>
+        <div style={styles.topBar}>
+          <div style={styles.topTitle}>VIGENAI</div>
+          <div style={styles.badge}>STUDIO v1.0</div>
+          <div style={{ flex: 1 }} />
+          <div style={{ fontSize: 10, color: "#4B5563", fontFamily: "monospace", letterSpacing: 1 }}>
+            {activeNav === "home" ? "AI VIDEO STUDIO" : activeNav === "explore" ? "COMMUNITY FEED" : activeNav === "queue" ? "RENDER QUEUE" : "PRICING"}
+          </div>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#34D399", boxShadow: "0 0 8px #34D399" }} />
+          <span style={{ fontSize: 10, color: "#34D399", letterSpacing: 1, fontFamily: "monospace" }}>ONLINE</span>
+        </div>
+        <div style={styles.content}>
+          {activeNav === "home" && renderStudio()}
+          {activeNav === "explore" && renderExplore()}
+          {activeNav === "queue" && renderQueue()}
+          {activeNav === "pricing" && renderPricing()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Panel({ title, children }) {
+  return (
+    <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 16 }}>
+      <div style={{ fontSize: 9, letterSpacing: 3, color: "#4B5563", marginBottom: 14, fontFamily: "monospace" }}>{title}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{children}</div>
+    </div>
+  );
+}
+
+function Setting({ label, children }) {
+  return (
+    <div>
+      <div style={{ fontSize: 9, letterSpacing: 2, color: "#374151", marginBottom: 8, fontFamily: "monospace" }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function Chip({ active, onClick, children }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: "5px 10px", borderRadius: 6, cursor: "pointer", fontSize: 11,
+      border: `1px solid ${active ? "rgba(255,215,0,0.4)" : "rgba(255,255,255,0.06)"}`,
+      background: active ? "rgba(255,215,0,0.1)" : "rgba(255,255,255,0.02)",
+      color: active ? "#FFD700" : "#6B7280",
+      fontFamily: "inherit", fontWeight: active ? 700 : 400,
+      transition: "all 0.15s", whiteSpace: "nowrap",
+    }}>{children}</button>
+  );
+}
+
+function Toggle({ label, sublabel, value, onChange }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div>
+        <div style={{ fontSize: 12, color: "#9CA3AF" }}>{label}</div>
+        {sublabel && <div style={{ fontSize: 9, color: "#374151", marginTop: 2 }}>{sublabel}</div>}
+      </div>
+      <button onClick={() => onChange(!value)} style={{
+        width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer",
+        background: value ? "linear-gradient(90deg, #FFD700, #FF6B35)" : "rgba(255,255,255,0.08)",
+        position: "relative", transition: "all 0.2s",
+      }}>
+        <div style={{
+          width: 16, height: 16, borderRadius: 8, background: "#fff",
+          position: "absolute", top: 3, left: value ? 21 : 3, transition: "left 0.2s",
+        }} />
+      </button>
+    </div>
+  );
+}
+
+function hexToRgb(hex) {
+  const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return r ? `${parseInt(r[1], 16)},${parseInt(r[2], 16)},${parseInt(r[3], 16)}` : "255,255,255";
+}
