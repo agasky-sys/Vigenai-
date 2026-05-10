@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ViGenAI - Long-Form AI Video Generator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#050508;color:#E8E0D0;font-family:'Rajdhani',system-ui,sans-serif;}
+    ::-webkit-scrollbar{width:4px;}
+    ::-webkit-scrollbar-thumb{background:rgba(255,215,0,0.2);border-radius:2px;}
+    @keyframes glow{0%,100%{box-shadow:0 0 20px rgba(255,215,0,0.3);}50%{box-shadow:0 0 40px rgba(255,215,0,0.6);}}
+    @keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
+    @keyframes slideIn{from{transform:translateY(10px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+    video{width:100%;border-radius:10px;}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useRef,useEffect}=React;
+
+const FAL_KEY="8f102e8a-aff2-40ad-9cc0-a4325ff9d73f:f5af5ec6bf43acd2cf9446a4c35c5545";
+
+// ═══════════════════════════════════════════════
+// CINEMATIC QUALITY ENHANCEMENT SYSTEM
+// Automatically added to EVERY scene prompt
+// ═══════════════════════════════════════════════
+const CINEMATIC_BASE = [
+  "ultra-photorealistic",
+  "cinematic 4K resolution",
+  "professional film grade",
+  "dramatic natural lighting",
+  "shallow depth of field",
+  "smooth fluid camera motion",
+  "sharp crisp detail",
+  "rich color grading",
+  "HDR high dynamic range",
+  "no blur no artifacts",
+  "Hollywood production quality",
+  "temporal consistency",
+].join(", ");
+
+// Style presets that boost quality further
+const STYLE_PRESETS = {
+  cinematic: {
+    label: "🎬 Cinematic",
+    suffix: "anamorphic lens flare, film grain, cinematic color grading, shot on ARRI cinema camera, dramatic shadows, golden hour lighting",
+    color: "#FFD700",
+  },
+  realistic: {
+    label: "📸 Hyper-Realistic",
+    suffix: "photorealistic render, 8K ultra HD, subsurface scattering, accurate physics, natural lighting, shot on RED camera, no AI artifacts",
+    color: "#34D399",
+  },
+  dramatic: {
+    label: "⚡ Dramatic",
+    suffix: "epic dramatic lighting, volumetric rays, deep contrast, moody atmosphere, cinematic grade, IMAX quality, breathtaking visuals",
+    color: "#FF6B35",
+  },
+  documentary: {
+    label: "🌍 Documentary",
+    suffix: "documentary style, handheld camera, natural lighting, authentic realistic, BBC nature documentary quality, intimate closeups",
+    color: "#60A5FA",
+  },
+};
+
+// Camera movements for variety between scenes
+const CAMERA_MOVES = [
+  "slow cinematic push-in",
+  "smooth dolly shot tracking left",
+  "epic crane shot pulling back",
+  "subtle handheld intimate",
+  "static wide establishing shot",
+  "slow pan revealing the scene",
+  "low angle upward shot",
+  "aerial drone-like descent",
+  "smooth rack focus pull",
+  "steady tracking shot following",
+];
+
+const DURATION_CONFIG = {
+  "30 sec": {scenes:3, waitMin:3, label:"30 seconds", desc:"3 scenes · ~3 min wait"},
+  "1 min":  {scenes:6, waitMin:6, label:"1 minute",   desc:"6 scenes · ~6 min wait"},
+  "2 min":  {scenes:12,waitMin:12,label:"2 minutes",  desc:"12 scenes · ~12 min wait"},
+  "3 min":  {scenes:18,waitMin:27,label:"3 minutes",  desc:"18 scenes · ~27 min wait"},
+  "5 min":  {scenes:30,waitMin:45,label:"5 minutes",  desc:"30 scenes · ~45 min wait"},
+};
+
+const MODELS = [
+  {id:"kling",  name:"Kling 3.0",  badge:"BEST QUALITY", color:"#FFD700",falId:"fal-ai/kling-video/v2.1/pro/text-to-video", note:"Best realism, worth the wait"},
+  {id:"wan",    name:"Wan 2.1",    badge:"FASTER",       color:"#34D399",falId:"fal-ai/wan-pro/text-to-video",              note:"40% faster generation"},
+  {id:"minimax",name:"MiniMax",    badge:"FASTEST",      color:"#60A5FA",falId:"fal-ai/minimax-video/text-to-video",        note:"Quickest generation"},
+];
+
+const RATIOS = ["16:9","9:16","1:1"];
+
+const TIPS = [
+  "☕ Perfect time to make a coffee",
+  "📱 You can use other apps — we'll keep generating",
+  "🎯 Quality takes time — your video will be worth it",
+  "🎬 Each scene is crafted with professional AI models",
+  "💡 Kling 3.0 is trained on millions of cinematic films",
+  "🌟 Hollywood studios take months — we take minutes",
+  "✨ Your video is being created scene by scene",
+  "🔋 Keep this tab open for best results",
+];
+
+// ═══════════════════════════════════════════════
+// CORE: Build enhanced scene prompts
+// ═══════════════════════════════════════════════
+function buildEnhancedPrompts(mainPrompt, numScenes, styleKey) {
+  const style = STYLE_PRESETS[styleKey];
+  return Array.from({length: numScenes}, (_, i) => {
+    const camera = CAMERA_MOVES[i % CAMERA_MOVES.length];
+    // Each scene gets: camera move + user prompt + cinematic base + style suffix
+    return `${camera}, ${mainPrompt}, ${CINEMATIC_BASE}, ${style.suffix}, scene ${i+1} of ${numScenes}, seamless continuation`;
+  });
+}
+
+async function generateClip(prompt, modelFalId, ratio) {
+  const res = await fetch(`https://fal.run/${modelFalId}`, {
+    method: "POST",
+    headers: {"Authorization": `Key ${FAL_KEY}`, "Content-Type": "application/json"},
+    body: JSON.stringify({prompt, duration: 10, aspect_ratio: ratio})
+  });
+  if (!res.ok) {const e = await res.json(); throw new Error(e.detail || "Generation failed");}
+  const data = await res.json();
+  const url = data?.video?.url || data?.video_url || data?.output?.video?.url || data?.url;
+  if (!url) throw new Error("No video returned");
+  return url;
+}
+
+function TimerDisplay({startTime, totalMinutes}) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setElapsed(Math.floor((Date.now()-startTime)/1000)), 1000);
+    return () => clearInterval(iv);
+  }, [startTime]);
+  const mins = Math.floor(elapsed/60), secs = elapsed%60;
+  const remaining = Math.max(0, totalMinutes*60-elapsed);
+  const remMins = Math.floor(remaining/60), remSecs = remaining%60;
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+      {[["ELAPSED",`${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}`, "#FFD700"],
+        ["EST. REMAINING",`${String(remMins).padStart(2,"0")}:${String(remSecs).padStart(2,"0")}`, "#34D399"]
+      ].map(([l,v,c]) => (
+        <div key={l} style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"10px 12px",textAlign:"center"}}>
+          <div style={{fontSize:9,color:"#4B5563",letterSpacing:2,fontFamily:"monospace",marginBottom:4}}>{l}</div>
+          <div style={{fontSize:22,fontWeight:800,color:c,fontFamily:"monospace"}}>{v}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TipRotator() {
+  const [i, setI] = useState(0);
+  useEffect(() => {const iv=setInterval(()=>setI(x=>(x+1)%TIPS.length),4000);return()=>clearInterval(iv);},[]);
+  return <div style={{padding:"10px 14px",background:"rgba(255,255,255,0.02)",borderRadius:8,fontSize:11,color:"#6B7280",textAlign:"center",fontStyle:"italic"}}>{TIPS[i]}</div>;
+}
+
+function SceneCard({index, total, status, url, error, camera}) {
+  const colors = {pending:"#374151",generating:"#FFD700",done:"#34D399",failed:"#EF4444"};
+  const icons  = {pending:"⏳",generating:"⚡",done:"✅",failed:"❌"};
+  return (
+    <div style={{background:"rgba(255,255,255,0.02)",border:`1px solid ${colors[status]}25`,borderRadius:9,padding:12,marginBottom:8,animation:"slideIn 0.3s ease"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:url?8:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{width:26,height:26,minWidth:26,borderRadius:6,background:colors[status]+"18",border:`1px solid ${colors[status]}35`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12}}>{icons[status]}</div>
+          <div>
+            <div style={{fontSize:11,color:"#9CA3AF",fontWeight:600}}>Scene {index} of {total}</div>
+            <div style={{fontSize:9,color:"#4B5563",marginTop:1}}>{camera}</div>
+            {status==="generating"&&<div style={{fontSize:9,color:"#FFD700",animation:"blink 1s infinite"}}>Generating now...</div>}
+            {status==="done"&&<div style={{fontSize:9,color:"#34D399"}}>Ready ✓</div>}
+          </div>
+        </div>
+        {url&&<a href={url} download={`vigenai-scene-${index}.mp4`} style={{padding:"5px 10px",borderRadius:5,background:"rgba(255,215,0,0.1)",border:"1px solid rgba(255,215,0,0.2)",color:"#FFD700",fontSize:9,fontWeight:700,textDecoration:"none",flexShrink:0}}>⬇ SAVE</a>}
+      </div>
+      {url&&<video src={url} controls style={{width:"100%",borderRadius:7,marginTop:8,maxHeight:220}}/>}
+      {error&&<div style={{fontSize:9,color:"#EF4444",marginTop:4,padding:"4px 8px",background:"rgba(239,68,68,0.05)",borderRadius:4}}>{error}</div>}
+    </div>
+  );
+}
+
+function App() {
+  const [nav,setNav]             = useState("home");
+  const [prompt,setPrompt]       = useState("");
+  const [mdl,setMdl]             = useState("kling");
+  const [durKey,setDurKey]       = useState("30 sec");
+  const [ratio,setRatio]         = useState("16:9");
+  const [styleKey,setStyleKey]   = useState("cinematic");
+  const [running,setRunning]     = useState(false);
+  const [scenes,setScenes]       = useState([]);
+  const [prog,setProg]           = useState(0);
+  const [clips,setClips]         = useState([]);
+  const [startTime,setStartTime] = useState(null);
+  const [confirmed,setConfirmed] = useState(false);
+  const [enh,setEnh]             = useState(false);
+  const stopRef = useRef(false);
+
+  const selM    = MODELS.find(m=>m.id===mdl);
+  const durCfg  = DURATION_CONFIG[durKey];
+  const selStyle= STYLE_PRESETS[styleKey];
+
+  const enhance = async () => {
+    if (!prompt) return;
+    setEnh(true);
+    await new Promise(r=>setTimeout(r,1500));
+    setPrompt(prompt + ", with stunning visual detail, rich textures, atmospheric depth, emotionally compelling composition");
+    setEnh(false);
+  };
+
+  const startGeneration = async () => {
+    stopRef.current = false;
+    setRunning(true); setClips([]); setProg(0); setConfirmed(false); setStartTime(Date.now());
+    const numScenes  = durCfg.scenes;
+    const prompts    = buildEnhancedPrompts(prompt, numScenes, styleKey);
+    const cameraList = prompts.map((_,i) => CAMERA_MOVES[i % CAMERA_MOVES.length]);
+
+    setScenes(Array.from({length:numScenes},(_,i)=>({id:i+1,status:"pending",url:null,error:null,camera:cameraList[i]})));
+
+    const done = [];
+    let doneCount = 0;
+
+    for (let i = 0; i < numScenes; i++) {
+      if (stopRef.current) break;
+      setScenes(prev=>prev.map((s,idx)=>idx===i?{...s,status:"generating"}:s));
+      try {
+        const url = await generateClip(prompts[i], selM.falId, ratio);
+        done.push(url); doneCount++;
+        setScenes(prev=>prev.map((s,idx)=>idx===i?{...s,status:"done",url}:s));
+        setProg(Math.round((doneCount/numScenes)*100));
+        setClips([...done]);
+      } catch(err) {
+        setScenes(prev=>prev.map((s,idx)=>idx===i?{...s,status:"failed",error:err.message}:s));
+        doneCount++;
+        setProg(Math.round((doneCount/numScenes)*100));
+      }
+      if (i < numScenes-1) await new Promise(r=>setTimeout(r,2000));
+    }
+    setRunning(false);
+  };
+
+  const stopGen = () => {stopRef.current=true; setRunning(false);};
+  const reset   = () => {setScenes([]);setClips([]);setProg(0);setConfirmed(false);setStartTime(null);};
+
+  const NAV = [{id:"home",icon:"⚡",label:"Studio"},{id:"how",icon:"📖",label:"How"},{id:"pricing",icon:"💎",label:"Pricing"}];
+
+  return (
+    <div style={{minHeight:"100vh",background:"#050508",display:"flex"}}>
+      {/* Sidebar */}
+      <div style={{width:62,background:"rgba(8,8,14,0.98)",borderRight:"1px solid rgba(255,215,0,0.07)",display:"flex",flexDirection:"column",alignItems:"center",padding:"14px 0",gap:6,position:"fixed",left:0,top:0,bottom:0,zIndex:100}}>
+        <div style={{width:36,height:36,background:"linear-gradient(135deg,#FFD700,#FF6B35)",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,marginBottom:18,animation:"glow 2s infinite"}}>⚡</div>
+        {NAV.map(n=>(
+          <button key={n.id} onClick={()=>setNav(n.id)} style={{width:44,height:44,borderRadius:10,border:`1px solid ${nav===n.id?"rgba(255,215,0,0.3)":"transparent"}`,background:nav===n.id?"rgba(255,215,0,0.08)":"transparent",color:nav===n.id?"#FFD700":"#4B5563",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:17,gap:2,transition:"all 0.2s"}}>
+            <span>{n.icon}</span><span style={{fontSize:7,fontFamily:"monospace"}}>{n.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div style={{marginLeft:62,flex:1,display:"flex",flexDirection:"column"}}>
+        {/* Topbar */}
+        <div style={{height:50,background:"rgba(5,5,8,0.95)",borderBottom:"1px solid rgba(255,215,0,0.05)",display:"flex",alignItems:"center",padding:"0 18px",gap:10,position:"sticky",top:0,zIndex:50}}>
+          <span style={{fontSize:15,fontWeight:800,letterSpacing:4,background:"linear-gradient(90deg,#FFD700,#FF6B35)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>VIGENAI</span>
+          <span style={{fontSize:8,padding:"2px 7px",borderRadius:4,background:"rgba(255,215,0,0.08)",border:"1px solid rgba(255,215,0,0.15)",color:"#FFD700",letterSpacing:2,fontFamily:"monospace"}}>LONG-FORM STUDIO</span>
+          <div style={{flex:1}}/>
+          <div style={{width:6,height:6,borderRadius:"50%",background:"#34D399",boxShadow:"0 0 7px #34D399"}}/>
+          <span style={{fontSize:8,color:"#34D399",letterSpacing:1,fontFamily:"monospace"}}>LIVE</span>
+        </div>
+
+        <div style={{flex:1,overflowY:"auto",padding:18}}>
+
+          {/* ═══ STUDIO ═══ */}
+          {nav==="home" && <div style={{maxWidth:900,margin:"0 auto"}}>
+
+            {!running && scenes.length===0 && <div>
+
+              {/* Prompt */}
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:9,letterSpacing:3,color:"#4B5563",marginBottom:8,fontFamily:"monospace"}}>YOUR VIDEO STORY</div>
+                <div style={{position:"relative"}}>
+                  <textarea value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder={"Describe your video in detail...\n\nEXAMPLE: A lone astronaut walks across a red Martian landscape at sunset, discovers a glowing alien artifact buried in the ground, dramatic dust storm approaching in the distance..."} style={{width:"100%",minHeight:120,background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,215,0,0.12)",borderRadius:11,padding:"12px 12px 42px",color:"#E8E0D0",fontSize:12,lineHeight:1.7,resize:"vertical",fontFamily:"inherit",outline:"none"}}/>
+                  <button onClick={enhance} disabled={enh||!prompt} style={{position:"absolute",bottom:9,right:9,padding:"5px 11px",borderRadius:6,background:"rgba(255,215,0,0.1)",border:"1px solid rgba(255,215,0,0.25)",color:"#FFD700",cursor:"pointer",fontSize:9,fontFamily:"inherit",letterSpacing:1,fontWeight:700}}>{enh?"✨ ENHANCING...":"✨ ENHANCE"}</button>
+                </div>
+              </div>
+
+              {/* Style preset — KEY QUALITY BOOSTER */}
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:9,letterSpacing:3,color:"#4B5563",marginBottom:8,fontFamily:"monospace"}}>🎨 VISUAL STYLE — AUTO-APPLIED TO ALL SCENES</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
+                  {Object.entries(STYLE_PRESETS).map(([key,s])=>(
+                    <button key={key} onClick={()=>setStyleKey(key)} style={{padding:"11px 13px",borderRadius:10,cursor:"pointer",border:`2px solid ${styleKey===key?s.color+"60":"rgba(255,255,255,0.05)"}`,background:styleKey===key?s.color+"10":"rgba(255,255,255,0.01)",textAlign:"left",fontFamily:"inherit",transition:"all 0.2s"}}>
+                      <div style={{fontSize:12,fontWeight:700,color:styleKey===key?s.color:"#6B7280",marginBottom:4}}>{s.label}</div>
+                      <div style={{fontSize:9,color:"#374151",lineHeight:1.5}}>{s.suffix.split(",").slice(0,3).join(" · ")}</div>
+                    </button>
+                  ))}
+                </div>
+                <div style={{marginTop:8,padding:"8px 12px",background:"rgba(52,211,153,0.04)",border:"1px solid rgba(52,211,153,0.1)",borderRadius:8,fontSize:10,color:"#6EE7B7"}}>
+                  ✅ Selected style automatically added to every scene for consistent, professional quality
+                </div>
+              </div>
+
+              {/* Duration */}
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:9,letterSpacing:3,color:"#4B5563",marginBottom:8,fontFamily:"monospace"}}>VIDEO LENGTH — HONEST WAIT TIMES</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
+                  {Object.entries(DURATION_CONFIG).map(([key,cfg])=>(
+                    <button key={key} onClick={()=>setDurKey(key)} style={{padding:"11px 13px",borderRadius:10,cursor:"pointer",border:`2px solid ${durKey===key?"rgba(255,215,0,0.5)":"rgba(255,255,255,0.05)"}`,background:durKey===key?"rgba(255,215,0,0.07)":"rgba(255,255,255,0.01)",textAlign:"left",fontFamily:"inherit",transition:"all 0.2s"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                        <span style={{fontSize:14,fontWeight:800,color:durKey===key?"#FFD700":"#9CA3AF"}}>{key}</span>
+                      </div>
+                      <div style={{fontSize:9,color:"#4B5563",marginBottom:3}}>{cfg.scenes} scenes chained</div>
+                      <div style={{fontSize:11,fontWeight:700,color:cfg.waitMin<=6?"#34D399":cfg.waitMin<=12?"#FFD700":"#FF6B35"}}>⏱ ~{cfg.waitMin} min wait</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Model + Ratio row */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+                <div>
+                  <div style={{fontSize:9,letterSpacing:3,color:"#4B5563",marginBottom:8,fontFamily:"monospace"}}>AI MODEL</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    {MODELS.map(m=>(
+                      <button key={m.id} onClick={()=>setMdl(m.id)} style={{padding:"9px 11px",borderRadius:9,cursor:"pointer",border:`1px solid ${mdl===m.id?m.color+"50":"rgba(255,255,255,0.05)"}`,background:mdl===m.id?m.color+"10":"rgba(255,255,255,0.02)",textAlign:"left",fontFamily:"inherit",transition:"all 0.2s"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <span style={{fontSize:11,fontWeight:700,color:mdl===m.id?m.color:"#6B7280"}}>{m.name}</span>
+                          <span style={{fontSize:7,padding:"1px 5px",borderRadius:3,background:m.color+"20",color:m.color}}>{m.badge}</span>
+                        </div>
+                        <div style={{fontSize:9,color:"#374151",marginTop:2}}>{m.note}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div style={{fontSize:9,letterSpacing:3,color:"#4B5563",marginBottom:8,fontFamily:"monospace"}}>ASPECT RATIO</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    {RATIOS.map(r=>(
+                      <button key={r} onClick={()=>setRatio(r)} style={{padding:"9px 11px",borderRadius:9,cursor:"pointer",border:`1px solid ${ratio===r?"rgba(255,215,0,0.4)":"rgba(255,255,255,0.05)"}`,background:ratio===r?"rgba(255,215,0,0.08)":"rgba(255,255,255,0.02)",color:ratio===r?"#FFD700":"#6B7280",fontFamily:"inherit",fontSize:13,fontWeight:ratio===r?700:400,textAlign:"left",transition:"all 0.2s"}}>
+                        {r} {r==="16:9"?"— Landscape/YouTube":r==="9:16"?"— Portrait/TikTok":"— Square/Instagram"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Confirmation */}
+              {prompt && !confirmed && (
+                <div style={{background:"rgba(255,215,0,0.04)",border:"1px solid rgba(255,215,0,0.2)",borderRadius:12,padding:16,marginBottom:14}}>
+                  <div style={{fontSize:12,fontWeight:800,color:"#FFD700",letterSpacing:1,marginBottom:10}}>⚡ GENERATION SUMMARY</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                    {[
+                      ["Video Length",durCfg.label],
+                      ["Scenes",durCfg.scenes+" clips"],
+                      ["Visual Style",selStyle.label],
+                      ["AI Model",selM?.name],
+                      ["Quality","Auto-enhanced cinematic"],
+                      ["Est. Wait","~"+durCfg.waitMin+" minutes"],
+                    ].map(([l,v])=>(
+                      <div key={l} style={{background:"rgba(255,255,255,0.02)",borderRadius:7,padding:"7px 10px"}}>
+                        <div style={{fontSize:8,color:"#374151",letterSpacing:1,fontFamily:"monospace",marginBottom:2}}>{l}</div>
+                        <div style={{fontSize:11,fontWeight:700,color:"#E8E0D0"}}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{padding:"10px 12px",background:"rgba(52,211,153,0.05)",border:"1px solid rgba(52,211,153,0.12)",borderRadius:8,fontSize:11,color:"#6EE7B7",marginBottom:12,lineHeight:1.7}}>
+                    ✅ Your prompt will be automatically enhanced with <strong>{selStyle.label}</strong> quality settings. Scenes appear as they complete — watch while it generates!
+                  </div>
+                  <button onClick={()=>setConfirmed(true)} style={{width:"100%",padding:"13px 0",borderRadius:10,border:"none",background:"linear-gradient(135deg,#FFD700,#FF6B35)",color:"#050508",fontSize:13,fontWeight:800,letterSpacing:3,fontFamily:"inherit",cursor:"pointer",boxShadow:"0 0 25px rgba(255,215,0,0.2)"}}>
+                    ✅ START GENERATING
+                  </button>
+                </div>
+              )}
+
+              {confirmed && (
+                <button onClick={startGeneration} style={{width:"100%",padding:"14px 0",borderRadius:11,border:"none",background:"linear-gradient(135deg,#FFD700,#FF6B35)",color:"#050508",fontSize:13,fontWeight:800,letterSpacing:3,fontFamily:"inherit",cursor:"pointer",boxShadow:"0 0 25px rgba(255,215,0,0.2)"}}>
+                  ⚡ GENERATE {durCfg.label.toUpperCase()} VIDEO
+                </button>
+              )}
+            </div>}
+
+            {/* ── GENERATING ── */}
+            {running && <div>
+              <div style={{background:"rgba(255,215,0,0.04)",border:"1px solid rgba(255,215,0,0.15)",borderRadius:14,padding:20,marginBottom:16}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                  <div>
+                    <div style={{fontSize:14,fontWeight:800,color:"#FFD700",letterSpacing:2,animation:"blink 2s infinite"}}>⚡ GENERATING YOUR VIDEO</div>
+                    <div style={{fontSize:10,color:"#4B5563",marginTop:3}}>{scenes.filter(s=>s.status==="done").length} of {scenes.length} scenes complete · {selStyle.label} quality</div>
+                  </div>
+                  <div style={{fontSize:22,fontWeight:800,color:"#FFD700",fontFamily:"monospace"}}>{prog}%</div>
+                </div>
+                <div style={{height:6,background:"rgba(255,255,255,0.05)",borderRadius:3,overflow:"hidden",marginBottom:14}}>
+                  <div style={{height:"100%",width:`${prog}%`,background:"linear-gradient(90deg,#FFD700,#FF6B35)",borderRadius:3,transition:"width 1s ease"}}/>
+                </div>
+                {startTime && <TimerDisplay startTime={startTime} totalMinutes={durCfg.waitMin}/>}
+                <TipRotator/>
+                <button onClick={stopGen} style={{marginTop:12,padding:"8px 18px",borderRadius:7,background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",color:"#EF4444",cursor:"pointer",fontSize:10,fontFamily:"inherit",fontWeight:700}}>
+                  ⏹ STOP ({clips.length} scenes saved)
+                </button>
+              </div>
+              <div style={{fontSize:9,letterSpacing:3,color:"#4B5563",marginBottom:10,fontFamily:"monospace"}}>SCENES — WATCH AS THEY APPEAR</div>
+              {scenes.map(s=><SceneCard key={s.id} index={s.id} total={scenes.length} status={s.status} url={s.url} error={s.error} camera={s.camera}/>)}
+            </div>}
+
+            {/* ── COMPLETE ── */}
+            {!running && scenes.length>0 && <div>
+              <div style={{background:"rgba(52,211,153,0.05)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:14,padding:20,marginBottom:16,animation:"slideIn 0.5s ease"}}>
+                <div style={{fontSize:16,fontWeight:800,color:"#34D399",letterSpacing:2,marginBottom:6}}>🎉 {clips.length} SCENES READY!</div>
+                <div style={{fontSize:11,color:"#6B7280",marginBottom:14}}>{durCfg.label} of {selStyle.label} footage generated</div>
+                <div style={{padding:"12px 14px",background:"rgba(255,215,0,0.04)",border:"1px solid rgba(255,215,0,0.1)",borderRadius:10,fontSize:11,color:"#9CA3AF",lineHeight:1.8,marginBottom:14}}>
+                  💡 <strong style={{color:"#FFD700"}}>Combine your scenes:</strong> Download all scenes below, then open <strong>CapCut</strong> or <strong>VN Editor</strong> (free apps) → Import clips → Arrange in order → Export as one video!
+                </div>
+                <button onClick={reset} style={{padding:"9px 20px",borderRadius:8,background:"linear-gradient(135deg,#FFD700,#FF6B35)",border:"none",color:"#050508",cursor:"pointer",fontSize:11,fontFamily:"inherit",fontWeight:800,letterSpacing:1}}>+ GENERATE NEW VIDEO</button>
+              </div>
+              <div style={{fontSize:9,letterSpacing:3,color:"#4B5563",marginBottom:10,fontFamily:"monospace"}}>YOUR SCENES — TAP TO WATCH · SAVE EACH ONE</div>
+              {scenes.map(s=><SceneCard key={s.id} index={s.id} total={scenes.length} status={s.status} url={s.url} error={s.error} camera={s.camera}/>)}
+            </div>}
+          </div>}
+
+          {/* ═══ HOW IT WORKS ═══ */}
+          {nav==="how" && <div style={{maxWidth:680,margin:"0 auto"}}>
+            <div style={{fontSize:20,fontWeight:800,letterSpacing:3,marginBottom:6}}>HOW IT WORKS</div>
+            <div style={{fontSize:12,color:"#4B5563",marginBottom:20}}>Honest guide to long-form AI video generation</div>
+            <div style={{background:"rgba(255,215,0,0.04)",border:"1px solid rgba(255,215,0,0.15)",borderRadius:12,padding:16,marginBottom:20}}>
+              <div style={{fontSize:12,fontWeight:800,color:"#FFD700",marginBottom:8}}>🎬 THE QUALITY SECRET</div>
+              <div style={{fontSize:11,color:"#9CA3AF",lineHeight:1.8}}>
+                Every scene gets automatically enhanced with 12 cinematic quality boosters: <em>ultra-photorealistic, 4K cinema, HDR, shallow depth of field, professional color grade, film grain</em> and more — before being sent to the AI. This is why ViGenAI videos look better than what you'd get typing the same prompt elsewhere.
+              </div>
+            </div>
+            {[
+              {icon:"🎨",title:"Choose Your Visual Style",desc:"Pick Cinematic, Hyper-Realistic, Dramatic, or Documentary. This style is automatically applied to every scene with professional film terminology the AI understands."},
+              {icon:"📝",title:"Write Your Story",desc:"Describe your video. You don't need to be technical — just describe what you want to see. ViGenAI handles all the cinematic quality terms automatically."},
+              {icon:"⚡",title:"Auto-Enhanced Prompts",desc:"Behind the scenes, your prompt gets 12 quality boosters added: camera moves, lighting terms, resolution specs, film grade instructions — all optimized for maximum realism."},
+              {icon:"⏱",title:"Honest Wait Times",desc:"We show exact wait times upfront. 30sec=3min, 1min=6min, 3min=27min. Scenes appear as they complete — you never just stare at a loading screen."},
+              {icon:"⬇️",title:"Download & Combine",desc:"Download each scene, then combine in free CapCut or VN Editor app. Import → arrange → export. Takes 2 minutes to get your full long-form video."},
+            ].map(item=>(
+              <div key={item.title} style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:12,padding:16,marginBottom:10,display:"flex",gap:14}}>
+                <div style={{fontSize:24,flexShrink:0}}>{item.icon}</div>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#E8E0D0",marginBottom:4}}>{item.title}</div>
+                  <div style={{fontSize:11,color:"#6B7280",lineHeight:1.7}}>{item.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>}
+
+          {/* ═══ PRICING ═══ */}
+          {nav==="pricing" && <div style={{maxWidth:820,margin:"0 auto"}}>
+            <div style={{textAlign:"center",marginBottom:28}}>
+              <div style={{fontSize:22,fontWeight:800,letterSpacing:4,background:"linear-gradient(90deg,#FFD700,#FF6B35)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>SIMPLE PRICING</div>
+              <div style={{color:"#4B5563",fontSize:11,marginTop:6}}>No watermarks. No hidden fees. Honest wait times.</div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+              {[
+                {name:"FREE",   price:"$0", period:"forever",    color:"#6B7280",cta:"Get Started",features:["3 videos/day","Up to 30 sec","Auto quality enhancement","4 visual styles","No watermark","2 AI models"],missing:["Longer videos","Priority queue"]},
+                {name:"PRO",    price:"$24",period:"per month",   color:"#FFD700",badge:"POPULAR",cta:"Start Pro",features:["Unlimited videos","Up to 3 min","Auto quality enhancement","All 4 styles","No watermark","All 3 AI models","Priority queue (50% faster)","Commercial license"],missing:["5 min videos"]},
+                {name:"STUDIO", price:"$89",period:"per month",   color:"#FF6B35",badge:"PROFESSIONAL",cta:"Go Studio",features:["Unlimited videos","Up to 5 min","Auto quality enhancement","All 4 styles","No watermark","All models + early access","Instant priority","API access","Commercial license","Dedicated support"],missing:[]},
+              ].map(p=>(
+                <div key={p.name} style={{background:p.name==="PRO"?"rgba(255,215,0,0.04)":"rgba(255,255,255,0.02)",border:`1px solid ${p.name==="PRO"?"rgba(255,215,0,0.2)":"rgba(255,255,255,0.05)"}`,borderRadius:13,padding:18,position:"relative",transform:p.name==="PRO"?"scale(1.02)":"scale(1)"}}>
+                  {p.badge&&<div style={{position:"absolute",top:-9,left:"50%",transform:"translateX(-50%)",padding:"2px 11px",borderRadius:20,background:`linear-gradient(90deg,${p.color},#FF6B35)`,fontSize:7,letterSpacing:2,fontWeight:800,color:"#050508",whiteSpace:"nowrap"}}>{p.badge}</div>}
+                  <div style={{fontSize:8,letterSpacing:4,color:p.color,marginBottom:5,fontFamily:"monospace"}}>{p.name}</div>
+                  <div style={{fontSize:28,fontWeight:800,color:"#E8E0D0",marginBottom:2}}>{p.price}</div>
+                  <div style={{fontSize:9,color:"#4B5563",marginBottom:14}}>{p.period}</div>
+                  <button style={{width:"100%",padding:"8px 0",borderRadius:7,border:"none",cursor:"pointer",background:p.name==="FREE"?"rgba(255,255,255,0.05)":`linear-gradient(135deg,${p.color},#FF6B35)`,color:p.name==="FREE"?"#6B7280":"#050508",fontWeight:800,letterSpacing:2,fontSize:10,fontFamily:"inherit",marginBottom:14}}>{p.cta}</button>
+                  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                    {p.features.map(f=><div key={f} style={{display:"flex",gap:6,fontSize:9,color:"#9CA3AF"}}><span style={{color:"#34D399"}}>✓</span>{f}</div>)}
+                    {p.missing.map(f=><div key={f} style={{display:"flex",gap:6,fontSize:9,color:"#374151"}}><span>✗</span>{f}</div>)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>}
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</body>
+</html>
